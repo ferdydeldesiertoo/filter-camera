@@ -1,0 +1,14 @@
+<component name="libraryTable">
+  <library name="AppCamara">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/dist/AppCamara.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../../../../../opencv/build/java/opencv-460.jar!/" />
+      <root url="jar://$USER_HOME$/Downloads/flatlaf-3.6.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../../../../../../opencv/build/java/opencv-460.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../../../../../../../opencv/build/java/opencv-460.jar!/" />
+    </SOURCES>
+  </library>
+</component>

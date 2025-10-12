@@ -8,6 +8,7 @@ import java.awt.Component;
 import java.awt.Image;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.ByteArrayInputStream;
@@ -29,6 +30,8 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.videoio.VideoCapture;
 
+import static com.app.OpenCvUtils.matToImage;
+
 /**
  *
  * @author ferdy
@@ -42,6 +45,7 @@ public class Main extends javax.swing.JFrame {
     private Mat frame = new Mat();
     
     private List<FilterItem> filterItems;
+    private FilterItem selectedFilter;
     private JList<?> filterList = null;
 
     /**
@@ -51,7 +55,6 @@ public class Main extends javax.swing.JFrame {
         initComponents();
         setLocationRelativeTo(null);
         setTitle("Camera");
-        comboBoxFilter.putClientProperty("ComboBox.popupWidth", "parent");
         
         panelCamera = new Camera(this);
         jPanel1.add(panelCamera, BorderLayout.CENTER);
@@ -59,14 +62,25 @@ public class Main extends javax.swing.JFrame {
         filterItems = new ArrayList<>();
         filterItems.add(new FilterItem("Normal", null));
         filterItems.add(new FilterItem("Blanco y negro", null));
-        
+        filterItems.add(new FilterItem("Sepia", null));
+        filterItems.add(new FilterItem("Invertir", null));
+        filterItems.add(new FilterItem("Mapa de calor", null));
+
         for(FilterItem filterItem:filterItems) {
             comboBoxFilter.addItem(filterItem);
+        }
+        
+        selectedFilter = filterItems.getFirst();
+        
+        if (videoCapture.read(frame) && !frame.empty()) {
+            // Esto "calienta" los FilterItem con imágenes antes de que el usuario interactúe.
+            updateFilterComboBox();
         }
         
         comboBoxFilter.setRenderer(new FilterItemRenderer());
         findFilterList(comboBoxFilter);
         clock.start();
+        updateFilterComboBox();
     }
 
     /**
@@ -154,31 +168,45 @@ public class Main extends javax.swing.JFrame {
     }//GEN-LAST:event_formWindowClosed
 
     private void comboBoxFilterActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_comboBoxFilterActionPerformed
-        // TODO add your handling code here:
+        selectedFilter = (FilterItem) comboBoxFilter.getSelectedItem();
     }//GEN-LAST:event_comboBoxFilterActionPerformed
   
     Timer clock = new Timer(70, new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
             try {
-                videoCapture.read(frame);
-                
-                if(!frame.empty()) {
-                    Imgcodecs.imencode(".bmp", frame, mem);
-                    image = ImageIO.read(new ByteArrayInputStream(mem.toArray()));
-                    
-                    panelCamera.setImage(image);
-                    panelCamera.updateUI();
-                    
-                    updateFilterComboBox();
-                    comboBoxFilter.repaint();
-                    if (comboBoxFilter.isPopupVisible() && filterList != null) {
-                        filterList.repaint();
-                    }
+                if(!videoCapture.read(frame) || frame.empty()) {
+                    clock.stop();
+                    return; 
+                }
+         
+                Mat filterFrame = new Mat();
+                if(selectedFilter.getName().equals("Blanco y negro")) {
+                    Imgproc.cvtColor(frame, filterFrame, Imgproc.COLOR_BGR2GRAY);
+                }
+                else if(selectedFilter.getName().equals("Sepia")) {
+                    filterFrame = OpenCvUtils.applySepiaFilter(frame);
+                }
+                else if(selectedFilter.getName().equals("Invertir")) {
+                    Core.bitwise_not(frame, filterFrame);
+                }
+                else if(selectedFilter.getName().equals("Mapa de calor")) {
+                    Imgproc.applyColorMap(frame, filterFrame, Imgproc.COLORMAP_JET);
                 }
                 else {
-                    clock.stop();
+                    filterFrame = frame;
                 }
+                      
+                Imgcodecs.imencode(".bmp", filterFrame, mem);
+                image = ImageIO.read(new ByteArrayInputStream(mem.toArray()));
+                    
+                panelCamera.setImage(image);
+                panelCamera.updateUI();
+                    
+                if (comboBoxFilter.isPopupVisible()) {
+                    updateFilterComboBox();
+                }
+                
             } catch (Exception ex) {
                 System.out.println(ex.getMessage());
             }
@@ -189,26 +217,38 @@ public class Main extends javax.swing.JFrame {
         SwingUtilities.invokeLater(() -> {
             if (comboBox.getUI() instanceof BasicComboBoxUI ui) {
                 if (ui.getAccessibleChild(comboBox, 0) instanceof BasicComboPopup popup) {
-                    JList<?> list = popup.getList();
-                    filterList = list;
+                    filterList = popup.getList();
                 }
             }
         });
     }
     
     private void updateFilterComboBox() {
-        filterItems.get(0).setPreviewImage(image);
-        
+        //normal
+        filterItems.getFirst().setPreviewImage(matToImage(frame));
+
+        //black and white
         Mat grayFrame = new Mat();
         Imgproc.cvtColor(frame, grayFrame, Imgproc.COLOR_BGR2GRAY);
-        
-        MatOfByte grayMem = new MatOfByte();
-        Imgcodecs.imencode(".bmp", grayFrame, grayMem);
-        try {
-            Image grayImage = ImageIO.read(new ByteArrayInputStream(grayMem.toArray()));
-            filterItems.get(1).setPreviewImage(grayImage);
-        } catch (Exception ex) {
-            System.out.println(ex.getMessage());
+        filterItems.get(1).setPreviewImage(matToImage(grayFrame));
+
+        //sepia
+        Mat sepiaFrame = OpenCvUtils.applySepiaFilter(frame);
+        filterItems.get(2).setPreviewImage(matToImage(sepiaFrame));
+
+        //invert
+        Mat invertFrame = new Mat();
+        Core.bitwise_not(frame, invertFrame);
+        filterItems.get(3).setPreviewImage(matToImage(invertFrame));
+
+        //colormap
+        Mat colorMapFrame = new Mat();
+        Imgproc.applyColorMap(frame, colorMapFrame, Imgproc.COLORMAP_JET);
+        filterItems.get(4).setPreviewImage(matToImage(colorMapFrame));
+
+        if (filterList != null) {
+            filterList.repaint();
+            comboBoxFilter.repaint();
         }
     }
     
