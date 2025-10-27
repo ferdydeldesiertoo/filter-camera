@@ -1,34 +1,25 @@
 package com.app;
 
 import com.app.palette.FilterItem;
-import com.app.palette.FilterItemRenderer;
 import com.formdev.flatlaf.FlatDarkLaf;
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.Image;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.imageio.ImageIO;
-import javax.swing.JComboBox;
-import javax.swing.JList;
-import javax.swing.JSplitPane;
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
-import javax.swing.UIManager;
-import javax.swing.plaf.basic.BasicComboBoxUI;
-import javax.swing.plaf.basic.BasicComboPopup;
+import javax.swing.*;
+
 import org.opencv.core.Core;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfByte;
-import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.videoio.VideoCapture;
 
@@ -38,15 +29,14 @@ import static com.app.OpenCvUtils.*;
  *
  * @author ferdy
  */
-public class Main extends javax.swing.JFrame {
+public class Main extends JFrame {
     private Camera panelCamera;
-    private Image image = null;
+    private volatile Image image = null;
 
     private volatile boolean running = true;
     
     private VideoCapture videoCapture = new VideoCapture(0);
-    private MatOfByte mem = new MatOfByte();
-    private Mat frame = new Mat();
+    private final Mat frame = new Mat();
 
     private final Mat matGray = new Mat();
     private final Mat matSepia = new Mat();
@@ -57,7 +47,8 @@ public class Main extends javax.swing.JFrame {
     private List<FilterItem> filterItems;
     private FilterItem selectedFilter;
 
-    private final PanelCustomEffects panelCustomEffects = new PanelCustomEffects();
+    private final PanelCustomEffects panelCustomEffects;
+    private final PanelBottomControls panelBottomControls;
 
     /**
      * Creates new form Main
@@ -69,6 +60,27 @@ public class Main extends javax.swing.JFrame {
         
         panelCamera = new Camera(this);
         panelContainerCamera.add(panelCamera, BorderLayout.CENTER);
+
+        panelBottomControls = new PanelBottomControls();
+        panelSouth.add(panelBottomControls, BorderLayout.CENTER);
+
+        panelBottomControls.getToggleButtonGrid().addActionListener(e -> {
+            boolean isSelected = panelBottomControls.getToggleButtonGrid().isSelected();
+
+            panelCamera.setShowGrid(isSelected);
+        });
+        panelBottomControls.getButtonCapture().addActionListener(e -> {
+            String opcDelay = (String) panelBottomControls.getComboBoxTimer().getSelectedItem();
+            int delay = switch (opcDelay) {
+                case "3 segundos" -> 3000;
+                case "5 segundos" -> 5000;
+                case "10 segundos" -> 10000;
+                default -> 0;
+            };
+
+            takePicture(delay);
+        });
+
 
         filterItems = new ArrayList<>();
         filterItems.add(new FilterItem("Normal", null));
@@ -92,7 +104,8 @@ public class Main extends javax.swing.JFrame {
         
         selectedFilter = filterItems.getFirst();
         updateSelectionUI();
-        
+
+        panelCustomEffects = new PanelCustomEffects();
         tabbedPane.addTab("Personalizado", panelCustomEffects);
         
         if (videoCapture.read(frame) && !frame.empty()) {
@@ -106,54 +119,59 @@ public class Main extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
-        panelContainerCamera = new javax.swing.JPanel();
-        jPanel2 = new javax.swing.JPanel();
-        tabbedPane = new javax.swing.JTabbedPane();
-        jScrollPane1 = new javax.swing.JScrollPane();
-        panelFiltersContainer = new javax.swing.JPanel();
+        panelContainerCamera = new JPanel();
+        panelSouth = new JPanel();
+        jPanel2 = new JPanel();
+        tabbedPane = new JTabbedPane();
+        jScrollPane1 = new JScrollPane();
+        panelFiltersContainer = new JPanel();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            public void windowClosed(java.awt.event.WindowEvent evt) {
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            public void windowClosed(WindowEvent evt) {
                 formWindowClosed(evt);
             }
         });
 
-        panelContainerCamera.setBackground(new java.awt.Color(255, 51, 51));
-        panelContainerCamera.setMinimumSize(new java.awt.Dimension(500, 500));
-        panelContainerCamera.setPreferredSize(new java.awt.Dimension(700, 500));
-        panelContainerCamera.setLayout(new java.awt.BorderLayout());
+        panelContainerCamera.setBackground(new Color(255, 51, 51));
+        panelContainerCamera.setMinimumSize(new Dimension(500, 500));
+        panelContainerCamera.setPreferredSize(new Dimension(700, 500));
+        panelContainerCamera.setLayout(new BorderLayout());
 
-        panelContainerCamera.setSize(new java.awt.Dimension(300, 500));
+        panelSouth.setPreferredSize(new Dimension(384, 50));
+        panelSouth.setLayout(new BorderLayout());
+        panelContainerCamera.add(panelSouth, BorderLayout.SOUTH);
 
-        getContentPane().add(panelContainerCamera, java.awt.BorderLayout.CENTER);
+        panelContainerCamera.setSize(new Dimension(300, 500));
 
-        jPanel2.setPreferredSize(new java.awt.Dimension(250, 615));
+        getContentPane().add(panelContainerCamera, BorderLayout.CENTER);
+
+        jPanel2.setPreferredSize(new Dimension(250, 615));
 
         tabbedPane.setToolTipText("");
 
-        panelFiltersContainer.setLayout(new java.awt.GridLayout(0, 1));
+        panelFiltersContainer.setLayout(new GridLayout(0, 1));
         jScrollPane1.setViewportView(panelFiltersContainer);
 
         tabbedPane.addTab("Filtros", null, jScrollPane1, "");
 
-        javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
+        GroupLayout jPanel2Layout = new GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
-            jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(tabbedPane, javax.swing.GroupLayout.DEFAULT_SIZE, 250, Short.MAX_VALUE)
+            jPanel2Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
+            .addComponent(tabbedPane, GroupLayout.DEFAULT_SIZE, 250, Short.MAX_VALUE)
         );
         jPanel2Layout.setVerticalGroup(
-            jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            jPanel2Layout.createParallelGroup(GroupLayout.Alignment.LEADING)
             .addComponent(tabbedPane)
         );
 
-        getContentPane().add(jPanel2, java.awt.BorderLayout.EAST);
+        getContentPane().add(jPanel2, BorderLayout.EAST);
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-    private void formWindowClosed(java.awt.event.WindowEvent evt) {                                  
+    private void formWindowClosed(WindowEvent evt) {
         running = false;
     }
 
@@ -244,16 +262,77 @@ public class Main extends javax.swing.JFrame {
         Imgproc.applyColorMap(frame, matColorMap, Imgproc.COLORMAP_JET);
         filterPreviews.get(4).setPreviewImage(matToImage(matColorMap));
     }
+
+    private void takePicture(int timer) {
+        new Thread(() -> {
+            try {
+                panelBottomControls.getButtonCapture().setEnabled(false);
+
+                int seconds = timer / 1000;
+                if(seconds > 0) {
+                    for(int i = seconds; i > 0; i--) {
+                        panelCamera.setCountdownText(String.valueOf(i));
+                        Thread.sleep(1000);
+                    }
+                }
+
+                panelCamera.setCountdownText("");
+                Thread.sleep(100);
+
+                Image imageToSave = image;
+                if(imageToSave == null) {
+                    throw new IOException("Can't take picture");
+                }
+
+                BufferedImage bufferedImage = new BufferedImage(
+                        image.getWidth(null),
+                        image.getHeight(null),
+                        BufferedImage.TYPE_INT_ARGB
+                );
+                Graphics2D graphics = bufferedImage.createGraphics();
+                graphics.drawImage(imageToSave, 0, 0, null);
+                graphics.dispose();
+
+                final File[] fileResult = new File[1];
+                SwingUtilities.invokeAndWait(() -> {
+                    JFileChooser fileChooser = new JFileChooser(System.getProperty("user.home") + File.separator + "Pictures");
+                    fileChooser.setDialogTitle("Guardar foto");
+                    fileChooser.setSelectedFile(new File("captura_" + System.currentTimeMillis() + ".png"));
+                    if(fileChooser.showSaveDialog(Main.this) == JFileChooser.APPROVE_OPTION) {
+                        fileResult[0] = fileChooser.getSelectedFile();
+                    }
+
+                    if(fileResult[0] != null) {
+                        try {
+                            ImageIO.write(bufferedImage, "png", fileResult[0]);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+                });
+
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(Main.this, "Can't take picture");
+                });
+                e.printStackTrace();
+            } finally {
+                panelBottomControls.getButtonCapture().setEnabled(true);
+            }
+        }).start();
+
+    }
     
     public static void main(String args[]) {
         System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
         try {
             UIManager.setLookAndFeel(new FlatDarkLaf());
-        } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+        } catch (UnsupportedLookAndFeelException ex) {
+            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         }
         
-        java.awt.EventQueue.invokeLater(new Runnable() {
+        EventQueue.invokeLater(new Runnable() {
             public void run() {
                 new Main().setVisible(true);
             }
@@ -261,10 +340,11 @@ public class Main extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JPanel jPanel2;
-    private javax.swing.JScrollPane jScrollPane1;
-    private javax.swing.JPanel panelContainerCamera;
-    private javax.swing.JPanel panelFiltersContainer;
-    private javax.swing.JTabbedPane tabbedPane;
+    private JPanel jPanel2;
+    private JScrollPane jScrollPane1;
+    private JPanel panelContainerCamera;
+    private JPanel panelFiltersContainer;
+    private JPanel panelSouth;
+    private JTabbedPane tabbedPane;
     // End of variables declaration//GEN-END:variables
 }

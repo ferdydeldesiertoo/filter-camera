@@ -4,8 +4,7 @@
  */
 package com.app;
 
-import java.awt.Graphics;
-import java.awt.Image;
+import java.awt.*;
 
 /**
  *
@@ -14,6 +13,8 @@ import java.awt.Image;
 public class Camera extends javax.swing.JPanel {
     private final Main container;
     private Image image;
+    private volatile boolean showGrid = false;
+    private volatile String countdownText = "";
 
     /**
      * Creates new form Camera
@@ -28,12 +29,47 @@ public class Camera extends javax.swing.JPanel {
     public void paint(Graphics g) {
         super.paint(g);
         if(image != null) {
-            g.drawImage(image, 0, 0, this.getWidth(), this.getHeight(), null);
+            int width = getWidth();
+            int height = getHeight();
+            g.drawImage(image, 0, 0, width, height, null);
+
+            if(showGrid) {
+                g.setColor(new Color(255, 255, 255, 120));
+
+                // Líneas verticales
+                g.drawLine(width / 3, 0, width / 3, height);
+                g.drawLine((width * 2) / 3, 0, (width * 2) / 3, height);
+
+                // Líneas horizontales
+                g.drawLine(0, height / 3, width, height / 3);
+                g.drawLine(0, (height * 2) / 3, width, (height * 2) / 3);
+            }
+
+            if(!countdownText.isEmpty()) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setFont(new Font("Arial", Font.BOLD, 200));
+                g2.setColor(new Color(255, 255, 255, 200));
+
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (getWidth() - fm.stringWidth(countdownText)) / 2;
+                int y = ((getHeight() - fm.getHeight()) / 2) + fm.getAscent();
+                g2.drawString(countdownText, x, y);
+            }
         }
     }
     
     public void setImage(Image image) {
         this.image = image;
+    }
+
+    public void setShowGrid(boolean showGrid) {
+        this.showGrid = showGrid;
+        repaint();
+    }
+
+    public void setCountdownText(String countdownText) {
+        this.countdownText = countdownText;
+        repaint();
     }
 
     /**
