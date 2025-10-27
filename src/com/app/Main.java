@@ -32,7 +32,7 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.videoio.VideoCapture;
 
-import static com.app.OpenCvUtils.matToImage;
+import static com.app.OpenCvUtils.*;
 
 /**
  *
@@ -41,15 +41,23 @@ import static com.app.OpenCvUtils.matToImage;
 public class Main extends javax.swing.JFrame {
     private Camera panelCamera;
     private Image image = null;
+
+    private volatile boolean running = true;
     
     private VideoCapture videoCapture = new VideoCapture(0);
     private MatOfByte mem = new MatOfByte();
     private Mat frame = new Mat();
+
+    private final Mat matGray = new Mat();
+    private final Mat matSepia = new Mat();
+    private final Mat matInvert = new Mat();
+    private final Mat matColorMap = new Mat();
     
     private List<PanelFilterPreview> filterPreviews;
-
     private List<FilterItem> filterItems;
     private FilterItem selectedFilter;
+
+    private final PanelCustomEffects panelCustomEffects = new PanelCustomEffects();
 
     /**
      * Creates new form Main
@@ -85,11 +93,13 @@ public class Main extends javax.swing.JFrame {
         selectedFilter = filterItems.getFirst();
         updateSelectionUI();
         
+        tabbedPane.addTab("Personalizado", panelCustomEffects);
+        
         if (videoCapture.read(frame) && !frame.empty()) {
             // Esto "calienta" los FilterItem con imágenes antes de que el usuario interactúe.
             updateFilterPreviews();
         }
-        clock.start();
+        startCameraLoop();
     }
 
     @SuppressWarnings("unchecked")
@@ -98,7 +108,7 @@ public class Main extends javax.swing.JFrame {
 
         panelContainerCamera = new javax.swing.JPanel();
         jPanel2 = new javax.swing.JPanel();
-        jTabbedPane1 = new javax.swing.JTabbedPane();
+        tabbedPane = new javax.swing.JTabbedPane();
         jScrollPane1 = new javax.swing.JScrollPane();
         panelFiltersContainer = new javax.swing.JPanel();
 
@@ -118,24 +128,24 @@ public class Main extends javax.swing.JFrame {
 
         getContentPane().add(panelContainerCamera, java.awt.BorderLayout.CENTER);
 
-        jPanel2.setPreferredSize(new java.awt.Dimension(200, 615));
+        jPanel2.setPreferredSize(new java.awt.Dimension(250, 615));
 
-        jTabbedPane1.setToolTipText("");
+        tabbedPane.setToolTipText("");
 
         panelFiltersContainer.setLayout(new java.awt.GridLayout(0, 1));
         jScrollPane1.setViewportView(panelFiltersContainer);
 
-        jTabbedPane1.addTab("Filtros", null, jScrollPane1, "");
+        tabbedPane.addTab("Filtros", null, jScrollPane1, "");
 
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
         jPanel2Layout.setHorizontalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jTabbedPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 200, Short.MAX_VALUE)
+            .addComponent(tabbedPane, javax.swing.GroupLayout.DEFAULT_SIZE, 250, Short.MAX_VALUE)
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jTabbedPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 522, Short.MAX_VALUE)
+            .addComponent(tabbedPane)
         );
 
         getContentPane().add(jPanel2, java.awt.BorderLayout.EAST);
@@ -144,10 +154,7 @@ public class Main extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void formWindowClosed(java.awt.event.WindowEvent evt) {                                  
-        try {
-            clock.stop();
-        } catch (Exception e) {
-        }
+        running = false;
     }
 
     private void updateSelectionUI() {
@@ -155,69 +162,87 @@ public class Main extends javax.swing.JFrame {
             panelFilterPreview.setSelected(selectedFilter == panelFilterPreview.getFilterItem());
         }
     }
-  
-    Timer clock = new Timer(70, new ActionListener() {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            try {
-                if(!videoCapture.read(frame) || frame.empty()) {
-                    clock.stop();
-                    return; 
+
+    private void startCameraLoop() {
+        new Thread(() -> {
+            while (running && videoCapture.isOpened()) {
+                try {
+                    if(!videoCapture.read(frame) || frame.empty()) {
+                        break;
+                    }
+
+                    Mat filterFrame = new Mat();
+                    int activeTab = tabbedPane.getSelectedIndex();
+
+                    if(activeTab == 0) {
+                        filterFrame = filterTabIsSelected(filterFrame);
+                        updateFilterPreviews();
+                    }
+                    else if(activeTab == 1) {
+                        int brightness = panelCustomEffects.getSliderBrightness().getValue();
+                        double contrast = (double) panelCustomEffects.getSliderContrast().getValue() / 100;
+                        int blur = (int) panelCustomEffects.getSpinnerBlur().getValue();
+                        boolean invert = panelCustomEffects.getCheckBoxInvert().isSelected();
+
+                        filterFrame = applyCustomFilter(frame, brightness, contrast, blur, invert);
+                    }
+
+                    image = matToImage(filterFrame);
+
+                    SwingUtilities.invokeLater(() -> {
+                        panelCamera.setImage(image);
+                        panelCamera.repaint();
+                    });
+
+                    Thread.sleep(33);
+
+                } catch (Exception ex) {
+                    System.out.println(ex.getMessage());
                 }
-         
-                Mat filterFrame = new Mat();
-                if(selectedFilter.getName().equals("Blanco y negro")) {
-                    Imgproc.cvtColor(frame, filterFrame, Imgproc.COLOR_BGR2GRAY);
-                }
-                else if(selectedFilter.getName().equals("Sepia")) {
-                    filterFrame = OpenCvUtils.applySepiaFilter(frame);
-                }
-                else if(selectedFilter.getName().equals("Invertir")) {
-                    Core.bitwise_not(frame, filterFrame);
-                }
-                else if(selectedFilter.getName().equals("Mapa de calor")) {
-                    Imgproc.applyColorMap(frame, filterFrame, Imgproc.COLORMAP_JET);
-                }
-                else {
-                    filterFrame = frame;
-                }
-                      
-                Imgcodecs.imencode(".bmp", filterFrame, mem);
-                image = ImageIO.read(new ByteArrayInputStream(mem.toArray()));
-                    
-                panelCamera.setImage(image);
-                panelCamera.updateUI();
-                    
-                updateFilterPreviews();
-                
-            } catch (Exception ex) {
-                System.out.println(ex.getMessage());
             }
+
+            videoCapture.release();
+        }, "CameraThread").start();
+    }
+
+    private Mat filterTabIsSelected(Mat filterFrame) {
+        if(selectedFilter.getName().equals("Blanco y negro")) {
+            Imgproc.cvtColor(frame, filterFrame, Imgproc.COLOR_BGR2GRAY);
         }
-    });
-   
+        else if(selectedFilter.getName().equals("Sepia")) {
+            applySepiaFilter(frame, filterFrame);
+        }
+        else if(selectedFilter.getName().equals("Invertir")) {
+            Core.bitwise_not(frame, filterFrame);
+        }
+        else if(selectedFilter.getName().equals("Mapa de calor")) {
+            Imgproc.applyColorMap(frame, filterFrame, Imgproc.COLORMAP_JET);
+        }
+        else {
+            filterFrame = frame;
+        }
+        return filterFrame;
+    }
+
     private void updateFilterPreviews() {
         //normal
         filterPreviews.getFirst().setPreviewImage(matToImage(frame));
 
         //black and white
-        Mat grayFrame = new Mat();
-        Imgproc.cvtColor(frame, grayFrame, Imgproc.COLOR_BGR2GRAY);
-        filterPreviews.get(1).setPreviewImage(matToImage(grayFrame));
+        Imgproc.cvtColor(frame, matGray, Imgproc.COLOR_BGR2GRAY);
+        filterPreviews.get(1).setPreviewImage(matToImage(matGray));
 
         //sepia
-        Mat sepiaFrame = OpenCvUtils.applySepiaFilter(frame);
-        filterPreviews.get(2).setPreviewImage(matToImage(sepiaFrame));
+        applySepiaFilter(frame, matSepia);
+        filterPreviews.get(2).setPreviewImage(matToImage(matSepia));
 
         //invert
-        Mat invertFrame = new Mat();
-        Core.bitwise_not(frame, invertFrame);
-        filterPreviews.get(3).setPreviewImage(matToImage(invertFrame));
+        Core.bitwise_not(frame, matInvert);
+        filterPreviews.get(3).setPreviewImage(matToImage(matInvert));
 
         //colormap
-        Mat colorMapFrame = new Mat();
-        Imgproc.applyColorMap(frame, colorMapFrame, Imgproc.COLORMAP_JET);
-        filterPreviews.get(4).setPreviewImage(matToImage(colorMapFrame));
+        Imgproc.applyColorMap(frame, matColorMap, Imgproc.COLORMAP_JET);
+        filterPreviews.get(4).setPreviewImage(matToImage(matColorMap));
     }
     
     public static void main(String args[]) {
@@ -238,8 +263,8 @@ public class Main extends javax.swing.JFrame {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JPanel jPanel2;
     private javax.swing.JScrollPane jScrollPane1;
-    private javax.swing.JTabbedPane jTabbedPane1;
     private javax.swing.JPanel panelContainerCamera;
     private javax.swing.JPanel panelFiltersContainer;
+    private javax.swing.JTabbedPane tabbedPane;
     // End of variables declaration//GEN-END:variables
 }
